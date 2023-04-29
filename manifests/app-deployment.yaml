@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: __CI_PROJECT_NAME__-app
+  namespace: __CI_PROJECT_NAMESPACE__
+  labels:
+    environment: __ENVIRONMENT__
+spec:
+  replicas: 1
+  
+  selector:
+    matchLabels:
+      app:  __CI_PROJECT_NAME__-app
+      environment: __ENVIRONMENT__
+  
+  template:
+    metadata:
+      labels:
+        app: __CI_PROJECT_NAME__-app
+        environment: __ENVIRONMENT__
+        version: __VERSION__
+        git_group: __CI_PROJECT_NAMESPACE__
+        git_project: __CI_PROJECT_NAME__
+        git_commit: __CI_BUILD_REF__
+    
+    spec:
+      initContainers:
+      - name: __CI_PROJECT_NAME__-migrations
+        image: registry.devops.ti.howest.be/__CI_PROJECT_NAMESPACE__/__CI_PROJECT_NAME__:__CI_BUILD_REF__
+        command: [ "/usr/local/bin/php", "artisan", "migrate", "--force" ]
+        volumeMounts:
+        - mountPath: "/app/.env"
+          name: env-config
+          subPath: ".env"
+      
+      containers:
+      - name: __CI_PROJECT_NAME__
+        image: registry.devops.ti.howest.be/__CI_PROJECT_NAMESPACE__/__CI_PROJECT_NAME__:__CI_BUILD_REF__
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        volumeMounts:
+        - mountPath: "/app/.env"
+          name: env-config
+          subPath: ".env"
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+      
+      volumes:
+      - name: env-config
+        secret:
+          secretName: __CI_PROJECT_NAME__-app
+
+      imagePullSecrets:
+      - name: howest-docker-registry

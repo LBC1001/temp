@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+    @apply pt-8;
+}
+
+h1 {
+    @apply text-2xl font-semibold mb-8;
+}
+
+h2 {
+    @apply text-xl font-semibold mb-4;
+}
+
+input[type='text'], input[type='email'], input[type='number'] {
+    @apply px-2 py-1 bg-slate-100 rounded-md ;
+}
+
+select {
+    @apply bg-slate-100 px-2 py-2 rounded-md;
+}

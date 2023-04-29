@@ -1,0 +1,21 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: __ENVIRONMENT__-__CI_PROJECT_NAME__
+  namespace: __CI_PROJECT_NAMESPACE__
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  tls:
+  - hosts:
+    - __ENVIRONMENT_DOMAIN__
+    secretName: __ENVIRONMENT__-__CI_PROJECT_NAME__-tls
+  rules:
+  - host: __ENVIRONMENT_DOMAIN__
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: __CI_PROJECT_NAME__-app
+          servicePort: http

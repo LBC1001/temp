@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: __CI_PROJECT_NAME__-mysql
+  namespace: __CI_PROJECT_NAMESPACE__
+  labels:
+    app: __CI_PROJECT_NAME__-mysql
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: __CI_PROJECT_NAME__-mysql
+
+  template:
+    metadata:
+      labels:
+        app: __CI_PROJECT_NAME__-mysql
+
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:                
+                - kube-001.howest                        
+                - kube-002.howest                        
+                - kube-003.howest                        
+
+      containers:
+      - name: __CI_PROJECT_NAME__-mysql
+        image: mysql:8
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+          requests:
+            cpu: 1000m
+            memory: 1Gi    
+        ports:
+          - containerPort: 3306
+        volumeMounts:
+          - mountPath: "/var/lib/mysql"
+            name: mysql-storage
+          - mountPath: "/root/.my.cnf"
+            name: mysql-config
+            subPath: ".my.cnf"
+        env:
+          - name: MYSQL_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: __CI_PROJECT_NAME__-mysql
+                key: ROOT_PASSWORD
+
+      volumes:
+      - name: mysql-storage
+        persistentVolumeClaim:
+          claimName: __CI_PROJECT_NAME__-mysql
+      - name: mysql-config
+        configMap:
+          name: __CI_PROJECT_NAME__-mysql

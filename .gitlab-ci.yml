@@ -1,0 +1,80 @@
+variables:
+  # Disable Shallow cloning
+  GIT_DEPTH: "0"
+
+stages:
+- versioning
+- dockerize
+- deploy
+
+# TEST
+versioning:
+  stage: versioning
+  tags:
+    - semver
+  script:
+    - /semver/Semver bump --export=ci_versioning.txt
+    - source ./ci_versioning.txt
+    # Tag current commit in git if it does not yet have a version
+    - if [[ "${VERSION_CURRENT_COMMIT}" == "" ]] ; then curl -X POST -g -k -H "PRIVATE-TOKEN:yko7kxs3Pyxb26RjKxK-" -H "Content-Type:application/json" --data '{"message":"[ci skip] tagged by gitlab ci"}' "https://gitlab.devops.ti.howest.be/api/v4/projects/${CI_PROJECT_ID}/repository/tags?tag_name=${VERSION}&ref=${CI_COMMIT_SHA}" ; fi
+  artifacts:
+    paths:
+      # versioning artifacts
+      - ci_versioning.txt
+    expire_in: 1 week
+    when: always
+  only:
+    - main
+    - /^release-.*/
+
+dockerize:
+  stage: dockerize
+  tags:
+    - docker
+  script:
+    # Read version number(s) from env file (artifact)
+    - source ./ci_versioning.txt
+    # Build a docker image for the application  
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - docker build -t $CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME:${CI_COMMIT_SHA} .
+    - docker push $CI_REGISTRY/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME:${CI_COMMIT_SHA}
+  only:
+    - main
+    - /^release-.*/
+    
+deploy_development:
+  stage: deploy
+  environment:
+    name: development
+    url: https://lbconsult.shanedeconinck.be/
+  tags:
+    - kubernetes
+  dependencies:
+    - versioning
+  script:
+    # Environment prep
+    - source ./ci_versioning.txt
+    - ENVIRONMENT_DOMAIN=lbconsult.shanedeconinck.be
+    - export KUBECONFIG="/root/.kube/config"
+    # Replace placeholders with environment variables
+    - cd manifests
+    - sed -i "s/__VERSION__/${VERSION}/g" *.yaml
+    - sed -i "s/__CI_PROJECT_NAME__/${CI_PROJECT_NAME}/g" *.yaml
+    - sed -i "s/__CI_PROJECT_NAMESPACE__/${CI_PROJECT_NAMESPACE}/g" *.yaml
+    - sed -i "s/__CI_BUILD_REF__/${CI_COMMIT_SHA}/g" *.yaml
+    - sed -i "s/__ENVIRONMENT__/${CI_ENVIRONMENT_NAME}/g" *.yaml
+    - sed -i "s/__ENVIRONMENT_DOMAIN__/${ENVIRONMENT_DOMAIN}/g" *.yaml
+    # Apply new manifests in kubernetes
+    - kubectl apply -f namespace.yaml
+    - kubectl apply -f namespace-docker-secret.yaml
+    - kubectl apply -f db-persistent-volume-claim.yaml
+    - kubectl apply -f db-secret.yaml
+    - kubectl apply -f db-configmap.yaml
+    - kubectl apply -f db-deployment.yaml
+    - kubectl apply -f db-service.yaml
+    - kubectl apply -f app-secret.yaml
+    - kubectl apply -f app-deployment.yaml
+    - kubectl apply -f app-service.yaml
+    - kubectl apply -f app-ingress.yaml
+  only:
+    - main
